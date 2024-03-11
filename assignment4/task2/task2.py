@@ -16,11 +16,19 @@ def calculate_iou(prediction_box, gt_box):
             float: value of the intersection of union for the two boxes.
     """
     # YOUR CODE HERE
+    w_a = predicted_boxes[2]-predicted_boxes[0] #width of box a
+    h_a = predicted_boxes[3]-predicted_boxes[1] #height of box a
+    w_b = gt_box[2]-gt_box[0]                   #width of box b
+    h_b = gt_box[3]-gt_box[1]                   #height of box b
 
     # Compute intersection
+    A_inter = max(0,min(predicted_boxes[0]+w_a,gt_box[0]+w_b)-max(predicted_boxes[0],gt_box[0]))*max(0,min(predicted_boxes[3]+h_a,gt_box[3]+h_b)-max(predicted_boxes[3],gt_box[3]))
 
     # Compute union
-    iou = 0
+    A_union = (w_a*h_a)+(w_b*h_b)-A_inter
+
+    iou = A_inter/A_union
+
     assert iou >= 0 and iou <= 1
     return iou
 
@@ -36,7 +44,10 @@ def calculate_precision(num_tp, num_fp, num_fn):
     Returns:
         float: value of precision
     """
-    raise NotImplementedError
+    if (num_tp+num_fp == 0):
+        return 1
+    else:
+        return num_tp/(num_tp+num_fp)
 
 
 def calculate_recall(num_tp, num_fp, num_fn):
@@ -49,7 +60,10 @@ def calculate_recall(num_tp, num_fp, num_fn):
     Returns:
         float: value of recall
     """
-    raise NotImplementedError
+    if (num_tp+num_fn == 0):
+        return 0
+    else:
+        return num_tp/(num_tp+num_fn)
 
 
 def get_all_box_matches(prediction_boxes, gt_boxes, iou_threshold):
@@ -73,15 +87,28 @@ def get_all_box_matches(prediction_boxes, gt_boxes, iou_threshold):
             Each row includes [xmin, ymin, xmax, ymax]
     """
     # Find all possible matches with a IoU >= iou threshold
+    p_boxes_return = np.zeros(len(predicted_boxes))
+    gt_boxes_return = []
+    iou_values = []
 
+    for i in range(len(predicted_boxes)):
+        for j in range(len(gt_boxes)):
+            iou_val = calculate_iou(predicted_boxes[i],gt_boxes[j])
+            iou_values.append(iou_val)
+
+        max_index = iou_values.index(max(iou_values))
+        iou_values.sort(reverse=True)           #all matches on IoU in descending order
+
+        if iou_values[0] > iou_threshold:
+            p_boxes_return.append(iou_values[0])
+            gt_boxes_return.append(max_index)
+        iou_values.clear()
 
     # Sort all matches on IoU in descending order
 
     # Find all matches with the highest IoU threshold
-
-
-
-    return np.array([]), np.array([])
+    
+    return p_boxes_return, gt_boxes_return
 
 
 def calculate_individual_image_result(prediction_boxes, gt_boxes, iou_threshold):
@@ -101,8 +128,13 @@ def calculate_individual_image_result(prediction_boxes, gt_boxes, iou_threshold)
         dict: containing true positives, false positives, true negatives, false negatives
             {"true_pos": int, "false_pos": int, false_neg": int}
     """
+    p_boxes,g_boxes = get_all_box_matches(predicted_boxes,gt_boxes,iou_threshold)
+    num_tp = len(p_boxes)
+    num_fp = len(predicted_boxes) - len (p_boxes)
+    num_fn = len(gt_boxes) - len(g_boxes)
 
-    raise NotImplementedError
+    return num_tp,num_fp,num_fn
+
 
 
 def calculate_precision_recall_all_images(
@@ -124,7 +156,15 @@ def calculate_precision_recall_all_images(
     Returns:
         tuple: (precision, recall). Both float.
     """
-    raise NotImplementedError
+    tp,fp,fn = 0
+
+    for i in range(len(all_prediction_boxes)):
+        tp,fp,fn += calculate_individual_image_result(all_prediction_boxes, all_gt_boxes, iou_threshold)
+    
+    precision = tp/(tp+fp)
+    recall = tp/(tp+fn)
+    
+    return (precision,recall)
 
 
 def get_precision_recall_curve(
@@ -157,6 +197,9 @@ def get_precision_recall_curve(
     # curve, we will use an approximation
     confidence_thresholds = np.linspace(0, 1, 500)
     # YOUR CODE HERE
+
+    p,r = calculate_precision_recall_all_images(all_prediction_boxes, all_gt_boxes, iou_threshold)
+    
 
     precisions = [] 
     recalls = []
